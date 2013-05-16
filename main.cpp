@@ -1,5 +1,5 @@
 /****************************************************************************\
-*	   Signal Server 1.3.3: Server optimised SPLAT! by Alex Farrant      *
+*	   Signal Server 1.3.4: Server optimised SPLAT! by Alex Farrant      *
 ******************************************************************************
 *	SPLAT! Project started in 1997 by John A. Magliacane, KD2BD 	     *
 *					                                     *
@@ -30,9 +30,9 @@
 #include <unistd.h>
 
 #define GAMMA 2.5
-#define MAXPAGES 64
-#define ARRAYSIZE 76810
-#define IPPD 1200
+#define MAXPAGES 36
+#define ARRAYSIZE 129650
+#define IPPD 3600
 
 #ifndef PI
 #define PI 3.141592653589793
@@ -493,7 +493,7 @@ void ReadPath(struct site source, struct site destination)
 		lat2, lon2, total_distance, dx, dy, path_length,
 		miles_per_sample, samples_per_radian=68755.0;
 	struct	site tempsite;
-
+	
 	lat1=source.lat*DEG2RAD;
 	lon1=source.lon*DEG2RAD;
 
@@ -1279,7 +1279,6 @@ int LoadSDF_SDF(char *name)
 		strncpy(path_plus_name,sdf_file,255);
 		
 			
-
 		fd=fopen(path_plus_name,"rb");
 
 		if (fd==NULL)
@@ -1290,8 +1289,7 @@ int LoadSDF_SDF(char *name)
 			strncpy(path_plus_name,sdf_path,255);
 			strncat(path_plus_name,sdf_file,255);
 			
-			//fprintf(stdout,path_plus_name);
-			//fflush(stdout);
+			
 
 			fd=fopen(path_plus_name,"rb");
 		}
@@ -1422,11 +1420,7 @@ int LoadSDF_SDF(char *name)
 				}
 			}
 
-                        if (debug==1){
-			fprintf(stdout," Done!\n");
-			fflush(stdout);
-                        }
-
+                       
 			return 1;
 		}
 
@@ -1452,20 +1446,16 @@ char LoadSDF(char *name)
 	char	found, free_page=0;
 	int	return_value=-1;
 
-	/* Try to load an uncompressed SDF first. */
-
 	return_value=LoadSDF_SDF(name);
 
-	/* If that fails, try loading a compressed SDF. */
-
-	//if (return_value==0 || return_value==-1)
-	//	return_value=LoadSDF_BZ(name);
 
 	/* If neither format can be found, then assume the area is water. */
 
 	if (return_value==0 || return_value==-1)
 	{
-				
+			
+    			
+	
 		/* Parse SDF name for minimum latitude and longitude values */
 
 		sscanf(name,"%d:%d:%d:%d",&minlat,&maxlat,&minlon,&maxlon);
@@ -1567,10 +1557,7 @@ char LoadSDF(char *name)
 						min_west=dem[indx].min_west;
 				}
 			}
-                        if(debug==1){
-			fprintf(stdout," Done!\n");
-			fflush(stdout);
-                        }
+                       
 			return_value=1;
 		}
 	}
@@ -2072,11 +2059,6 @@ void PlotLRMap(struct site source, double altitude, char *plo_filename)
 
 	minwest=dpp+(double)min_west;
 	maxnorth=(double)max_north-dpp;
-
-	symbol[0]='.';
-	symbol[1]='o';
-	symbol[2]='O';
-	symbol[3]='o';
 
 	count=0;
         if (debug){
@@ -3611,7 +3593,7 @@ int main(int argc, char *argv[])
 
 	
 
-	strncpy(ss_version,"1.3.3\0",6);
+	strncpy(ss_version,"1.3.4\0",6);
 	strncpy(ss_name,"Signal Server\0",14);
 	
 	if (argc==1)
@@ -3636,7 +3618,7 @@ int main(int argc, char *argv[])
                 fprintf(stdout,"      -cl Climate code 1-6 (optional)\n");
                 fprintf(stdout,"       -o Filename. Required. \n");
                 fprintf(stdout,"       -R Radius (miles/kilometers)\n");
-                fprintf(stdout,"     -res Resolution. Default=1200, Med=600, Low=300)\n");
+                fprintf(stdout,"     -res Pixels per degree. 300/600/1200(default)/3600 (optional)\n");
                 fprintf(stdout,"     -t Terrain background\n");
 		fprintf(stdout,"     -dbg Debug\n\n");
 
@@ -3741,6 +3723,13 @@ int main(int argc, char *argv[])
                                     MAXRAD=150;
                                     jgets=1;
                                 break;
+				
+				case 3600: 
+                                    MAXRAD=100;
+				    ippd=3600;
+                                    jgets=0;
+                                break;
+
                                 
                                 default:
                                     MAXRAD=100;
@@ -4069,7 +4058,7 @@ int main(int argc, char *argv[])
                 }
 
 
-                if (ippd < 300 || ippd > 1200){
+                if (ippd < 300 || ippd > 3600){
                     fprintf(stdout,"ERROR: resolution out of range!");
                     exit(0);
                 }
@@ -4245,10 +4234,7 @@ int main(int argc, char *argv[])
  // UDT clutter
  LoadUDT   (udt_file);
      
-// Calculate it
- 	if (debug){
-            fprintf(stdout,"\nUsing %.5f\n",LR.eps_dielect);
-        }
+
 
 	if (area_mode && topomap==0)
 	{
@@ -4257,9 +4243,7 @@ int main(int argc, char *argv[])
 
 	}
 
-        if (debug){
-            fprintf(stdout,"\nCalc complete\n");
-        }
+      
 	if (map || topomap)
 	{
 

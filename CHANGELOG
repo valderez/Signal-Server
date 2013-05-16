@@ -1,4 +1,8 @@
-Signal Server 1.3.3 changelog 
+Signal Server 1.3.4 changelog 
+
+v1.3.4 - 16 May 2013
+High resolution SRTM1 1-arc second DEM support added.
+Use -res 3600 and ensure .sdf files are produced with srtm2sdf-hd
 
 v1.3.3 - 04 Nov 2012
 Air planning:

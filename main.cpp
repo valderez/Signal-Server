@@ -1,5 +1,5 @@
 /****************************************************************************\
-*	   Signal Server 1.3.4: Server optimised SPLAT! by Alex Farrant      *
+*	   Signal Server 1.3.5: Server optimised SPLAT! by Alex Farrant      *
 ******************************************************************************
 *	SPLAT! Project started in 1997 by John A. Magliacane, KD2BD 	     *
 *					                                     *
@@ -30,8 +30,8 @@
 #include <unistd.h>
 
 #define GAMMA 2.5
-#define MAXPAGES 36
-#define ARRAYSIZE 129650
+#define MAXPAGES 9
+#define ARRAYSIZE 32600
 #define IPPD 3600
 
 #ifndef PI
@@ -3593,7 +3593,7 @@ int main(int argc, char *argv[])
 
 	
 
-	strncpy(ss_version,"1.3.4\0",6);
+	strncpy(ss_version,"1.3.5\0",6);
 	strncpy(ss_name,"Signal Server\0",14);
 	
 	if (argc==1)
@@ -3687,6 +3687,10 @@ int main(int argc, char *argv[])
 		tx_site[0].lat=91.0;
 		tx_site[0].lon=361.0;
 	
+
+	//flush dem
+	//memset(dem, 0, ARRAYSIZE * sizeof(struct dem));
+	memset(dem, 0, (size_t)MAXPAGES * sizeof(struct dem));
 
 	for (x=0; x<MAXPAGES; x++)
 	{
@@ -4269,3 +4273,4 @@ int main(int argc, char *argv[])
 
 	return 0;
 }
+

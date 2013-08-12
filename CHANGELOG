@@ -1,4 +1,10 @@
-Signal Server 1.3.4 changelog 
+Signal Server 1.3.6 changelog 
+
+v1.3.6 - 12 Aug 2013
+
+v1.3.5 - 07 Jul 2013
+Reduced maxpages to 9
+Added memset() to clear DEM before use
 
 v1.3.4 - 16 May 2013
 High resolution SRTM1 1-arc second DEM support added.

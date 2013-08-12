@@ -4,7 +4,7 @@ Signal-Server
 RF coverage calculator
 
 /****************************************************************************\
-*	   Signal Server 1.3.3: Server optimised SPLAT! by Alex Farrant      *
+*	   Signal Server 1.3.6: Server optimised SPLAT! by Alex Farrant      *
 ******************************************************************************
 *	SPLAT! Project started in 1997 by John A. Magliacane, KD2BD 	     *
 *					                                     *
@@ -29,11 +29,12 @@ RF coverage calculator
 
 	Usage: Signalserver (options)
 	
+			
                        -d Directory containing .sdf tiles
                      -lat Tx Latitude (decimal degrees)
                      -lon Tx Longitude (decimal degrees) Positive 0-360 
                      -txh Tx Height (above ground)
-                       -f Tx Frequency (MHz)
+                       -f Tx Frequency (MHz) 20MHz to 100Ghz (LOS after 20Ghz)
                      -erp Tx Effective Radiated Power (Watts)
 		             -rxh Rx Height(s) (optional. Default=0.1)
                       -rt Rx Threshold (dB / dBm / dBuV/m)
@@ -48,6 +49,6 @@ RF coverage calculator
                       -cl Climate code 1-6 (optional)
                        -o Filename. Required. 
                        -R Radius (miles/kilometers)
-                     -res Resolution. Default=1200, Med=600, Low=300
+                     -res Pixels per degree. 300/600/1200(default)/3600 (optional)
                      -t Terrain background
 				     -dbg Debug

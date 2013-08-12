@@ -1,5 +1,5 @@
 /****************************************************************************\
-*	   Signal Server 1.3.5: Server optimised SPLAT! by Alex Farrant      *
+*	   Signal Server 1.3.6: Server optimised SPLAT! by Alex Farrant      *
 ******************************************************************************
 *	SPLAT! Project started in 1997 by John A. Magliacane, KD2BD 	     *
 *					                                     *
@@ -1565,7 +1565,7 @@ char LoadSDF(char *name)
 	return return_value;
 }
 
-void PlotPath(struct site source, struct site destination, char mask_value)
+void PlotPath(struct site source, struct site destination, char mask_value, FILE *fd)
 {
 	/* This function analyzes the path between the source and
 	   destination locations.  It determines which points along
@@ -1637,6 +1637,7 @@ void PlotLRPath(struct site source, struct site destination, unsigned char mask_
 		elevation=0.0, distance=0.0, four_thirds_earth,
 		field_strength=0.0, rxp, dBm;
 	struct	site temp;
+
 
 	ReadPath(source,destination);
 
@@ -1865,7 +1866,7 @@ void PlotLRPath(struct site source, struct site destination, unsigned char mask_
 	}
 }
 
-void PlotLOSMap(struct site source, double altitude)
+void PlotLOSMap(struct site source, double altitude, char *plo_filename)
 {
 	/* This function performs a 360 degree sweep around the
 	   transmitter site (source location), and plots the
@@ -1881,31 +1882,23 @@ void PlotLOSMap(struct site source, double altitude)
 	unsigned char symbol[4], x;
 	double lat, lon, minwest, maxnorth, th;
 	static unsigned char mask_value=1;
+	FILE *fd=NULL;	
 
-	symbol[0]='.';
-	symbol[1]='o';
-	symbol[2]='O';
-	symbol[3]='o';
+	if (plo_filename[0]!=0)
+		fd=fopen(plo_filename,"wb");
 
-	count=0;
-
-	//fprintf(stdout,"\nComputing line-of-sight coverage of \"%s\" with an RX antenna\nat %.2f %s AGL",source.name,metric?altitude*METERS_PER_FOOT:altitude,metric?"meters":"feet");
-
-	if (clutter>0.0 && debug)
-		fprintf(stdout," and %.2f %s of ground clutter",metric?clutter*METERS_PER_FOOT:clutter,metric?"meters":"feet");
-
-	fprintf(stdout,"...\n\n 0%c to  25%c ",37,37);
-	fflush(stdout);
-
-	/* th=pixels/degree divided by 64 loops per
-	   progress indicator symbol (.oOo) printed. */
-
+	if (fd!=NULL)
+	{
+		fprintf(fd,"%d, %d\t; max_west, min_west\n%d, %d\t; max_north, min_north\n",max_west, min_west, max_north, min_north);
+	}
+	
 	th=ppd/loops;
 
 	z=(int)(th*ReduceAngle(max_west-min_west));
 
 	minwest=dpp+(double)min_west;
 	maxnorth=(double)max_north-dpp;
+
 
 	for (lon=minwest, x=0, y=0; (LonDiff(lon,(double)max_west)<=0.0); y++, lon=minwest+(dpp*(double)y))
 	{
@@ -1916,25 +1909,10 @@ void PlotLOSMap(struct site source, double altitude)
 		edge.lon=lon;
 		edge.alt=altitude;
 
-		PlotPath(source,edge,mask_value);
-		count++;
-
-		if (count==z)
-		{
-			fprintf(stdout,"%c",symbol[x]);
-			fflush(stdout);
-			count=0;
-
-			if (x==3)
-				x=0;
-			else
-				x++;
-		}
+		PlotPath(source,edge,mask_value,fd);
 	}
 
-	count=0;
-	fprintf(stdout,"\n25%c to  50%c ",37,37);
-	fflush(stdout);
+	
 
 	z=(int)(th*(double)(max_north-min_north));
 
@@ -1944,25 +1922,11 @@ void PlotLOSMap(struct site source, double altitude)
 		edge.lon=min_west;
 		edge.alt=altitude;
 
-		PlotPath(source,edge,mask_value);
-		count++;
-
-		if (count==z)
-		{
-			//fprintf(stdout,"%c",symbol[x]);
-			//fflush(stdout);
-			count=0;
-
-			if (x==3)
-				x=0;
-			else
-				x++;
-		}
+		PlotPath(source,edge,mask_value,fd);
+	
 	}
 
-	count=0;
-	fprintf(stdout,"\n50%c to  75%c ",37,37);
-	fflush(stdout);
+
 
 	z=(int)(th*ReduceAngle(max_west-min_west));
 
@@ -1975,26 +1939,11 @@ void PlotLOSMap(struct site source, double altitude)
 		edge.lon=lon;
 		edge.alt=altitude;
 
-		PlotPath(source,edge,mask_value);
-		count++;
+		PlotPath(source,edge,mask_value,fd);
 
-		if (count==z)
-		{
-			//fprintf(stdout,"%c",symbol[x]);
-			//fflush(stdout);
-			count=0;
-
-			if (x==3)
-				x=0;
-			else
-				x++;
-		}
 	}
 
-	count=0;
-	fprintf(stdout,"\n75%c to 100%c ",37,37);
-	fflush(stdout);
-
+	
 	z=(int)(th*(double)(max_north-min_north));
 
 	for (lat=(double)min_north, x=0, y=0; lat<(double)max_north; y++, lat=(double)min_north+(dpp*(double)y))
@@ -2003,27 +1952,12 @@ void PlotLOSMap(struct site source, double altitude)
 		edge.lon=max_west;
 		edge.alt=altitude;
 
-		PlotPath(source,edge,mask_value);
-		count++;
+		PlotPath(source,edge,mask_value,fd);
+		
 
-		if (count==z)
-		{
-			//fprintf(stdout,"%c",symbol[x]);
-			//fflush(stdout);
-			count=0;
-
-			if (x==3)
-				x=0;
-			else
-				x++;
-		}
 	}
 
-	fprintf(stdout,"\nDone!\n");
-	fflush(stdout);
-
-	/* Assign next mask value */
-
+	
 	switch (mask_value)
 	{
 		case 1:
@@ -2897,10 +2831,7 @@ void DoPathLoss(char *filename, unsigned char geo, unsigned char kml, unsigned c
 
 
 	fclose(fd);
-        if(debug){
-	fprintf(stdout,"Done!\n");
-	fflush(stdout);
-        }
+
 }
 
 void DoSigStr(char *filename, unsigned char geo, unsigned char kml, unsigned char ngs, struct site *xmtr, unsigned char txsites)
@@ -3114,10 +3045,7 @@ void DoSigStr(char *filename, unsigned char geo, unsigned char kml, unsigned cha
 
 
 	fclose(fd);
-        if(debug){
-	fprintf(stdout,"Done!\n");
-	fflush(stdout);
-        }
+   
 }
 
 void DoRxdPwr(char *filename, unsigned char geo, unsigned char kml, unsigned char ngs, struct site *xmtr, unsigned char txsites)
@@ -3333,11 +3261,232 @@ void DoRxdPwr(char *filename, unsigned char geo, unsigned char kml, unsigned cha
 
 
 	fclose(fd);
+   
+}
+
+void DoLOS(char *filename, unsigned char geo, unsigned char kml, unsigned char ngs, struct site *xmtr, unsigned char txsites)
+{
+	/* This function generates a topographic map in Portable Pix Map
+	   (PPM) format based on the signal power level values held in the
+	   signal[][] array.  The image created is rotated counter-clockwise
+	   90 degrees from its representation in dem[][] so that north
+	   points up and east points right in the image generated. */
+
+	char mapfile[255], geofile[255], kmlfile[255];
+	unsigned width, height, terrain, red, green, blue;
+	unsigned char found, mask, cityorcounty;
+	int indx, x, y, z=1, x0, y0, dBm, match;
+	double conversion, one_over_gamma, lat, lon, minwest;
+	FILE *fd;
+
+	one_over_gamma=1.0/GAMMA;
+	conversion=255.0/pow((double)(max_elevation-min_elevation),one_over_gamma);
+
+	width=(unsigned)(ippd*ReduceAngle(max_west-min_west));
+	height=(unsigned)(ippd*ReduceAngle(max_north-min_north));
+
+	//LoadDBMColors(xmtr[0]);
+
+	if (filename[0]==0)
+	{
+		strncpy(filename, xmtr[0].filename,254);
+		filename[strlen(filename)-4]=0;  /* Remove .qth */
+	}
+
+	y=strlen(filename);
+
+	if (y>4)
+	{
+		if (filename[y-1]=='m' && filename[y-2]=='p' && filename[y-3]=='p' && filename[y-4]=='.')
+			y-=4;
+	}
+
+	for (x=0; x<y; x++)
+	{
+		mapfile[x]=filename[x];
+		geofile[x]=filename[x];
+		kmlfile[x]=filename[x];
+	}
+
+	mapfile[x]='.';
+	geofile[x]='.';
+	kmlfile[x]='.';
+	mapfile[x+1]='p';
+	geofile[x+1]='g';
+	kmlfile[x+1]='k';
+	mapfile[x+2]='p';
+	geofile[x+2]='e';
+	kmlfile[x+2]='m';
+	mapfile[x+3]='m';
+	geofile[x+3]='o';
+	kmlfile[x+3]='l';
+	mapfile[x+4]=0;
+	geofile[x+4]=0;
+	kmlfile[x+4]=0;
+
+	minwest=((double)min_west)+dpp;
+
+	if (minwest>360.0)
+		minwest-=360.0;
+
+	north=(double)max_north-dpp;
+
+	
+	south=(double)min_north;	/* No bottom legend */
+	
+
+	east=(minwest<180.0?-minwest:360.0-min_west);
+	west=(double)(max_west<180?-max_west:360-max_west);
+
+	fd=fopen(mapfile,"wb");
+
+	fprintf(fd,"P6\n%u %u\n255\n",width,(kml?height:height+30));
         if(debug){
-	fprintf(stdout,"Done!\n");
+	fprintf(stdout,"\nWriting \"%s\" (%ux%u pixmap image)... ",mapfile,width,(kml?height:height+30));
 	fflush(stdout);
         }
+        // WriteKML()
+        //writeKML(xmtr,filename);
+        
+	for (y=0, lat=north; y<(int)height; y++, lat=north-(dpp*(double)y))
+	{
+		for (x=0, lon=max_west; x<(int)width; x++, lon=max_west-(dpp*(double)x))
+		{
+			if (lon<0.0)
+				lon+=360.0;
+
+			for (indx=0, found=0; indx<MAXPAGES && found==0;)
+			{
+				x0=(int)rint(ppd*(lat-(double)dem[indx].min_north));
+				y0=mpi-(int)rint(ppd*(LonDiff((double)dem[indx].max_west,lon)));
+
+				if (x0>=0 && x0<=mpi && y0>=0 && y0<=mpi)
+					found=1;
+				else
+					indx++;
+			}
+
+		     if (found)
+                     {
+                            mask=dem[indx].mask[x0][y0];
+
+                            if (mask&2)
+                                   /* Text Labels: Red */
+                                   fprintf(fd,"%c%c%c",255,0,0);
+
+                            else if (mask&4)
+                                   /* County Boundaries: Light Cyan */
+                                   fprintf(fd,"%c%c%c",128,128,255);
+
+                            else switch (mask&57)
+                            {
+                                   case 1:
+                                   /* TX1: Green */
+                                   fprintf(fd,"%c%c%c",0,255,0);
+                                   break;
+
+                                   case 8:
+                                   /* TX2: Cyan */
+                                   fprintf(fd,"%c%c%c",0,255,255);
+                                   break;
+
+                                   case 9:
+                                   /* TX1 + TX2: Yellow */
+                                   fprintf(fd,"%c%c%c",255,255,0);
+                                   break;
+
+                                   case 16:
+                                   /* TX3: Medium Violet */
+                                   fprintf(fd,"%c%c%c",147,112,219);
+                                   break;
+
+                                   case 17:
+                                   /* TX1 + TX3: Pink */
+                                   fprintf(fd,"%c%c%c",255,192,203);
+                                   break;
+
+                                   case 24:
+                                   /* TX2 + TX3: Orange */
+                                   fprintf(fd,"%c%c%c",255,165,0);
+                                   break;
+
+                                   case 25:
+                                   /* TX1 + TX2 + TX3: Dark Green */
+                                   fprintf(fd,"%c%c%c",0,100,0);
+                                   break;
+
+                                   case 32:
+                                   /* TX4: Sienna 1 */
+                                   fprintf(fd,"%c%c%c",255,130,71);
+                                   break;
+
+                                   case 33:
+                                   /* TX1 + TX4: Green Yellow */
+                                   fprintf(fd,"%c%c%c",173,255,47);
+                                   break;
+
+                                   case 40:
+                                   /* TX2 + TX4: Dark Sea Green 1 */
+                                   fprintf(fd,"%c%c%c",193,255,193);
+                                   break;
+
+                                   case 41:
+                                   /* TX1 + TX2 + TX4: Blanched Almond */
+                                   fprintf(fd,"%c%c%c",255,235,205);
+                                   break;
+
+                                   case 48:
+                                   /* TX3 + TX4: Dark Turquoise */
+                                   fprintf(fd,"%c%c%c",0,206,209);
+                                   break;
+
+                                   case 49:
+                                   /* TX1 + TX3 + TX4: Medium Spring Green */
+                                   fprintf(fd,"%c%c%c",0,250,154);
+                                   break;
+
+                                   case 56:
+                                   /* TX2 + TX3 + TX4: Tan */
+                                   fprintf(fd,"%c%c%c",210,180,140);
+                                   break;
+
+                                   case 57:
+                                   /* TX1 + TX2 + TX3 + TX4: Gold2 */
+                                   fprintf(fd,"%c%c%c",238,201,0);
+                                   break;
+
+                                   default:
+                                   if (ngs)  /* No terrain */
+                                          fprintf(fd,"%c%c%c",255,255,255);
+                                   else
+                                   {
+                                          /* Sea-level: Medium Blue */
+                                          if (dem[indx].data[x0][y0]==0)
+                                                 fprintf(fd,"%c%c%c",0,0,170);
+                                          else
+                                          {
+                                                 /* Elevation: Greyscale */
+                                                 terrain=(unsigned)(0.5+pow((double)(dem[indx].data[x0][y0]-min_elevation),one_over_gamma)*conversion);
+                                                 fprintf(fd,"%c%c%c",terrain,terrain,terrain);
+                                          }
+                                   }
+                            }
+                     }
+
+                     else
+                     {
+                            /* We should never get here, but if */
+                            /* we do, display the region as black */
+
+                            fprintf(fd,"%c%c%c",0,0,0);
+                     }
+              }
+       }
+
+       fclose(fd);
+
 }
+
 
 void LoadTopoData(int max_lon, int min_lon, int max_lat, int min_lat)
 {
@@ -3593,34 +3742,34 @@ int main(int argc, char *argv[])
 
 	
 
-	strncpy(ss_version,"1.3.5\0",6);
+	strncpy(ss_version,"1.3.6\0",6);
 	strncpy(ss_name,"Signal Server\0",14);
 	
 	if (argc==1)
 	{
-		fprintf(stdout,"\n\t\t -- %s %s options --\n\n",ss_name, ss_version);
+				fprintf(stdout,"\n\t\t -- %s %s options --\n\n",ss_name, ss_version);
                 fprintf(stdout,"       -d Directory containing .sdf tiles\n");
                 fprintf(stdout,"     -lat Tx Latitude (decimal degrees)\n");
                 fprintf(stdout,"     -lon Tx Longitude (decimal degrees) Positive 0-360 \n");
                 fprintf(stdout,"     -txh Tx Height (above ground)\n");
-                fprintf(stdout,"       -f Tx Frequency (MHz)\n");
+                fprintf(stdout,"       -f Tx Frequency (MHz) 20MHz to 100Ghz (LOS after 20Ghz)\n");
                 fprintf(stdout,"     -erp Tx Effective Radiated Power (Watts)\n");
-		            fprintf(stdout,"     -rxh Rx Height(s) (optional. Default=0.1)\n");
+		        fprintf(stdout,"     -rxh Rx Height(s) (optional. Default=0.1)\n");
                 fprintf(stdout,"      -rt Rx Threshold (dB / dBm / dBuV/m)\n");
                 fprintf(stdout,"      -hp Horizontal Polarisation (default=vertical)\n");
-		            fprintf(stdout,"      -gc Ground clutter (feet/meters)\n");
+		        fprintf(stdout,"      -gc Ground clutter (feet/meters)\n");
                 fprintf(stdout,"      -udt User defined terrain filename\n");
-	             	fprintf(stdout,"     -dbm Plot Rxd signal power instead of field strength\n");
-	             	fprintf(stdout,"       -m Metric units of measurement\n");
+	            fprintf(stdout,"     -dbm Plot Rxd signal power instead of field strength\n");
+	            fprintf(stdout,"       -m Metric units of measurement\n");
                 fprintf(stdout,"      -te Terrain code 1-6 (optional)\n");
                 fprintf(stdout,"      -terdic Terrain dielectric value 2-80 (optional)\n");
-	             	fprintf(stdout,"      -tercon Terrain conductivity 0.01-0.0001 (optional)\n");
+	            fprintf(stdout,"      -tercon Terrain conductivity 0.01-0.0001 (optional)\n");
                 fprintf(stdout,"      -cl Climate code 1-6 (optional)\n");
                 fprintf(stdout,"       -o Filename. Required. \n");
                 fprintf(stdout,"       -R Radius (miles/kilometers)\n");
                 fprintf(stdout,"     -res Pixels per degree. 300/600/1200(default)/3600 (optional)\n");
                 fprintf(stdout,"     -t Terrain background\n");
-		fprintf(stdout,"     -dbg Debug\n\n");
+				fprintf(stdout,"     -dbg Debug\n\n");
 
  
 
@@ -4026,7 +4175,7 @@ int main(int argc, char *argv[])
 
                  }
 
-                if (LR.frq_mhz < 20 || LR.frq_mhz > 20000)
+                if (LR.frq_mhz < 20 || LR.frq_mhz > 100000)
                 {
                     fprintf(stdout,"ERROR: Either the Frequency was missing or out of range!");
                       exit(0);
@@ -4082,7 +4231,7 @@ int main(int argc, char *argv[])
 	{
 		altitudeLR/=METERS_PER_FOOT;	/* RXH meters --> feet */
 		max_range/=KM_PER_MILE;		/* RAD kilometers --> miles */
-		//altitude/=METERS_PER_FOOT;	
+		altitude/=METERS_PER_FOOT;	
 		tx_site[0].alt/=METERS_PER_FOOT;	/* TXH meters --> feet */
 		clutter/=METERS_PER_FOOT;		/* CLH meters --> feet */
 		
@@ -4239,19 +4388,16 @@ int main(int argc, char *argv[])
  LoadUDT   (udt_file);
      
 
+	if (LR.frq_mhz > 20000){
 
-	if (area_mode && topomap==0)
-	{
-
-	PlotLRMap(tx_site[0],altitudeLR,ano_filename);
+	PlotLOSMap(tx_site[0],altitudeLR,ano_filename);
+	DoLOS(mapfile,geo,kml,ngs,tx_site,txsites);
 
 	}
+	else{
+	PlotLRMap(tx_site[0],altitudeLR,ano_filename);
 
-      
-	if (map || topomap)
-	{
-
-
+	
 			if (LR.erp==0.0)
 				DoPathLoss(mapfile,geo,kml,ngs,tx_site,txsites);
 			else
@@ -4259,7 +4405,13 @@ int main(int argc, char *argv[])
 					DoRxdPwr(mapfile,geo,kml,ngs,tx_site,txsites);
 				else
 					DoSigStr(mapfile,geo,kml,ngs,tx_site,txsites);
-         }
+	
+	}
+      
+	
+
+
+		
         
         fprintf(stdout,"|%.5f",north);
         fprintf(stdout,"|%.5f",east);

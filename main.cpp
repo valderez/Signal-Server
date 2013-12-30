@@ -1,11 +1,11 @@
 /****************************************************************************\
-*	   Signal Server 1.3.6: Server optimised SPLAT! by Alex Farrant      *
+*	   Signal Server 1.3.7: Server optimised SPLAT! by Alex Farrant          *
 ******************************************************************************
-*	SPLAT! Project started in 1997 by John A. Magliacane, KD2BD 	     *
-*					                                     *
+*	SPLAT! Project started in 1997 by John A. Magliacane, KD2BD 	         *
+*					                                                         *
 ******************************************************************************
 *         Please consult the SPLAT! documentation for a complete list of     *
-*	     individuals who have contributed to this project. 		     *
+*	     individuals who have contributed to this project. 		             *
 ******************************************************************************
 *                                                                            *
 *  This program is free software; you can redistribute it and/or modify it   *
@@ -19,7 +19,7 @@
 *  for more details.							     *
 *									     *
 ******************************************************************************
-* g++ -Wall -O3 -s -lm -fomit-frame-pointer itm.cpp main.cpp -o ss           * 
+* g++ -Wall -O3 -s -lm -fomit-frame-pointer itm.cpp cost.cpp hata.cpp main.cpp -o ss  * 
 \****************************************************************************/
 
 #include <stdio.h>
@@ -30,9 +30,9 @@
 #include <unistd.h>
 
 #define GAMMA 2.5
-#define MAXPAGES 9
-#define ARRAYSIZE 32600
-#define IPPD 3600
+#define MAXPAGES 64
+#define ARRAYSIZE 76810
+#define IPPD 1200
 
 #ifndef PI
 #define PI 3.141592653589793
@@ -117,6 +117,12 @@ void point_to_point(double elev[], double tht_m, double rht_m,
 	  double eps_dielect, double sgm_conductivity, double eno_ns_surfref,
 	  double frq_mhz, int radio_climate, int pol, double conf,
 	  double rel, double &dbloss, char *strmode, int &errnum);
+	  
+double HataLinkdB(float f,float h_B, float h_M, float d, int mode);
+
+double CostHataLinkdB(float f,float h_B, float h_M, float d);
+
+double ked(double freq, double elev[], double rxh, double dkm);
 
 double arccos(double x, double y)
 {
@@ -1222,7 +1228,7 @@ void LoadPAT(char *filename)
 	}
 }
 
-int LoadSDF_SDF(char *name)
+int LoadSDF_SDF(char *name, int winfiles)
 {
 	/* This function reads uncompressed ss Data Files (.sdf)
 	   containing digital elevation model data into memory.
@@ -1243,9 +1249,12 @@ int LoadSDF_SDF(char *name)
 	sdf_file[x]=0;
 
 	/* Parse filename for minimum latitude and longitude values */
-
+	if(winfiles==1){
+	sscanf(sdf_file,"%d=%d=%d=%d",&minlat,&maxlat,&minlon,&maxlon);
+	}else{
 	sscanf(sdf_file,"%d:%d:%d:%d",&minlat,&maxlat,&minlon,&maxlon);
-
+	}
+	
 	sdf_file[x]='.';
 	sdf_file[x+1]='s';
 	sdf_file[x+2]='d';
@@ -1431,7 +1440,7 @@ int LoadSDF_SDF(char *name)
 	else
 		return 0;
 }
-char LoadSDF(char *name)
+char LoadSDF(char *name, int winfiles)
 {
 	/* This function loads the requested SDF file from the filesystem.
 	   It first tries to invoke the LoadSDF_SDF() function to load an
@@ -1446,7 +1455,7 @@ char LoadSDF(char *name)
 	char	found, free_page=0;
 	int	return_value=-1;
 
-	return_value=LoadSDF_SDF(name);
+	return_value=LoadSDF_SDF(name, winfiles);
 
 
 	/* If neither format can be found, then assume the area is water. */
@@ -1456,10 +1465,11 @@ char LoadSDF(char *name)
 			
     			
 	
-		/* Parse SDF name for minimum latitude and longitude values */
-
+		if(winfiles==1){
+		sscanf(name,"%d=%d=%d=%d",&minlat,&maxlat,&minlon,&maxlon);
+		}else{
 		sscanf(name,"%d:%d:%d:%d",&minlat,&maxlat,&minlon,&maxlon);
-
+		}
 		/* Is it already in memory? */
 
 		for (indx=0, found=0; indx<MAXPAGES && found==0; indx++)
@@ -1565,7 +1575,7 @@ char LoadSDF(char *name)
 	return return_value;
 }
 
-void PlotPath(struct site source, struct site destination, char mask_value, FILE *fd)
+void PlotLOSPath(struct site source, struct site destination, char mask_value, FILE *fd)
 {
 	/* This function analyzes the path between the source and
 	   destination locations.  It determines which points along
@@ -1623,36 +1633,37 @@ void PlotPath(struct site source, struct site destination, char mask_value, FILE
 	}
 }
 
-void PlotLRPath(struct site source, struct site destination, unsigned char mask_value, FILE *fd)
+void PlotPropPath(struct site source, struct site destination, unsigned char mask_value, FILE *fd, int propmodel, int knifeedge)
 {
-	/* This function plots the RF path loss between source and
-	   destination points based on the Longley-Rice propagation
-	   model, taking into account antenna pattern data, if available. */
 
 	int	x, y, ifs, ofs, errnum;
 	char	block=0, strmode[100];
 	double	loss, azimuth, pattern=0.0,
 		xmtr_alt, dest_alt, xmtr_alt2, dest_alt2,
 		cos_rcvr_angle, cos_test_angle=0.0, test_alt,
-		elevation=0.0, distance=0.0, four_thirds_earth,
-		field_strength=0.0, rxp, dBm;
+		elevation=0.0, distance=0.0, radius=0.0, four_thirds_earth,
+		field_strength=0.0, rxp, dBm, txelev, dkm, diffloss, lastdiffloss;
 	struct	site temp;
 
+	radius = Distance(source,destination);
 
 	ReadPath(source,destination);
 
 	four_thirds_earth=FOUR_THIRDS*EARTHRADIUS;
 
 	/* Copy elevations plus clutter along path into the elev[] array. */
-
+	lastdiffloss=1;
+	
 	for (x=1; x<path.length-1; x++)
 		elev[x+2]=(path.elevation[x]==0.0?path.elevation[x]*METERS_PER_FOOT:(clutter+path.elevation[x])*METERS_PER_FOOT);
 
 	/* Copy ending points without clutter */
 
 	elev[2]=path.elevation[0]*METERS_PER_FOOT;
+	txelev=elev[2]+(source.alt*METERS_PER_FOOT);
+	
 	elev[path.length+1]=path.elevation[path.length-1]*METERS_PER_FOOT;
-
+	
 	/* Since the only energy the Longley-Rice model considers
 	   reaching the destination is based on what is scattered
 	   or deflected from the first obstruction along the path,
@@ -1731,8 +1742,7 @@ void PlotLRPath(struct site source, struct site destination, unsigned char mask_
 			}
 
 			/* Determine attenuation for each point along the
-			   path using Longley-Rice's point_to_point mode
-			   starting at y=2 (number_of_points = 1), the
+			   path using a prop model starting at y=2 (number_of_points = 1), the
 			   shortest distance terrain can play a role in
 			   path loss. */
 
@@ -1742,12 +1752,66 @@ void PlotLRPath(struct site source, struct site destination, unsigned char mask_
 
 			elev[1]=METERS_PER_MILE*(path.distance[y]-path.distance[y-1]);
 
-			point_to_point(elev,source.alt*METERS_PER_FOOT,
-	   		destination.alt*METERS_PER_FOOT, LR.eps_dielect,
-			LR.sgm_conductivity, LR.eno_ns_surfref, LR.frq_mhz,
-			LR.radio_climate, LR.pol, LR.conf, LR.rel, loss,
-			strmode, errnum);
-
+			/*
+			elev[2]=path.elevation[0]*METERS_PER_FOOT;
+			elev[path.length+1]=path.elevation[path.length-1]*METERS_PER_FOOT;
+			*/
+			if(path.elevation[y] < 1){
+			path.elevation[y]=1;
+			}
+			
+			dkm=(elev[1]*elev[0])/1000; // km
+	
+			switch (propmodel)
+			{
+			  case 1:
+			    // Longley Rice
+				 point_to_point(elev,source.alt*METERS_PER_FOOT,
+					destination.alt*METERS_PER_FOOT, LR.eps_dielect,
+					LR.sgm_conductivity, LR.eno_ns_surfref, LR.frq_mhz,
+					LR.radio_climate, LR.pol, LR.conf, LR.rel, loss,
+					strmode, errnum);
+				 break;
+			  case 3:
+				//HATA urban
+				loss=HataLinkdB(LR.frq_mhz,txelev,path.elevation[y]+(destination.alt*METERS_PER_FOOT),dkm, 1);
+				break;
+			  case 4:
+				//HATA suburban
+				loss=HataLinkdB(LR.frq_mhz,txelev,path.elevation[y]+(destination.alt*METERS_PER_FOOT),dkm, 2);
+				break;
+			  case 5:
+				//HATA open
+				loss=HataLinkdB(LR.frq_mhz,txelev,path.elevation[y]+(destination.alt*METERS_PER_FOOT),dkm, 3);
+				break;
+			  case 6:
+			    // COST231-HATA
+				loss=CostHataLinkdB(LR.frq_mhz,txelev,path.elevation[y]+(destination.alt*METERS_PER_FOOT),dkm);
+				break;
+				
+			  default:
+				 point_to_point(elev,source.alt*METERS_PER_FOOT,
+					destination.alt*METERS_PER_FOOT, LR.eps_dielect,
+					LR.sgm_conductivity, LR.eno_ns_surfref, LR.frq_mhz,
+					LR.radio_climate, LR.pol, LR.conf, LR.rel, loss,
+					strmode, errnum);
+  
+			}
+			
+	
+			if(knifeedge==1){
+			diffloss = ked(LR.frq_mhz,elev,destination.alt*METERS_PER_FOOT,dkm); 
+			loss+=(diffloss); // ;)
+			}
+			
+			  if(debug){
+				fprintf(stdout,"\n%2f\t%2f\t%2f\t%2f",txelev,path.elevation[y],dkm,loss);
+				fflush(stdout);
+			   }
+			
+			
+			//Key stage. Link dB for p2p is returned as 'loss'.
+		
 			temp.lat=path.lat[y];
 			temp.lon=path.lon[y];
 
@@ -1877,9 +1941,9 @@ void PlotLOSMap(struct site source, double altitude, char *plo_filename)
 	   of a topographic map when the WritePPM() function
 	   is later invoked. */
 
-	int y, z, count;
+	int y, z;
 	struct site edge;
-	unsigned char symbol[4], x;
+	unsigned char x;
 	double lat, lon, minwest, maxnorth, th;
 	static unsigned char mask_value=1;
 	FILE *fd=NULL;	
@@ -1909,7 +1973,7 @@ void PlotLOSMap(struct site source, double altitude, char *plo_filename)
 		edge.lon=lon;
 		edge.alt=altitude;
 
-		PlotPath(source,edge,mask_value,fd);
+		PlotLOSPath(source,edge,mask_value,fd);
 	}
 
 	
@@ -1922,7 +1986,7 @@ void PlotLOSMap(struct site source, double altitude, char *plo_filename)
 		edge.lon=min_west;
 		edge.alt=altitude;
 
-		PlotPath(source,edge,mask_value,fd);
+		PlotLOSPath(source,edge,mask_value,fd);
 	
 	}
 
@@ -1939,7 +2003,7 @@ void PlotLOSMap(struct site source, double altitude, char *plo_filename)
 		edge.lon=lon;
 		edge.alt=altitude;
 
-		PlotPath(source,edge,mask_value,fd);
+		PlotLOSPath(source,edge,mask_value,fd);
 
 	}
 
@@ -1952,7 +2016,7 @@ void PlotLOSMap(struct site source, double altitude, char *plo_filename)
 		edge.lon=max_west;
 		edge.alt=altitude;
 
-		PlotPath(source,edge,mask_value,fd);
+		PlotLOSPath(source,edge,mask_value,fd);
 		
 
 	}
@@ -1973,21 +2037,12 @@ void PlotLOSMap(struct site source, double altitude, char *plo_filename)
 	}
 }
 
-void PlotLRMap(struct site source, double altitude, char *plo_filename)
+void PlotPropagation(struct site source, double altitude, char *plo_filename, int propmodel, int knifeedge)
 {
-	/* This function performs a 360 degree sweep around the
-	   transmitter site (source location), and plots the
-	   Longley-Rice attenuation on the ss generated
-	   topographic map based on a receiver located at
-	   the specified altitude (in feet AGL).  Results
-	   are stored in memory, and written out in the form
-	   of a topographic map when the DoPathLoss() or
-	   DoSigStr() functions are later invoked. */
-
 	int y, z, count;
 	struct site edge;
 	double lat, lon, minwest, maxnorth, th;
-	unsigned char x, symbol[4];
+	unsigned char x;
 	static unsigned char mask_value=1;
 	FILE *fd=NULL;
 
@@ -1995,9 +2050,7 @@ void PlotLRMap(struct site source, double altitude, char *plo_filename)
 	maxnorth=(double)max_north-dpp;
 
 	count=0;
-        if (debug){
-	fprintf(stdout,"\nComputing Longley-Rice ");
-        }
+   
 
 	if (LR.erp==0.0 && debug)
 		fprintf(stdout,"path loss");
@@ -2025,13 +2078,8 @@ void PlotLRMap(struct site source, double altitude, char *plo_filename)
 
 	if (fd!=NULL)
 	{
-		/* Write header information to output file */
-
 		fprintf(fd,"%d, %d\t; max_west, min_west\n%d, %d\t; max_north, min_north\n",max_west, min_west, max_north, min_north);
 	}
-
-	/* th=pixels/degree divided by 64 loops per
-	   progress indicator symbol (.oOo) printed. */
 
 	th=ppd/loops;
 
@@ -2046,13 +2094,11 @@ void PlotLRMap(struct site source, double altitude, char *plo_filename)
 		edge.lon=lon;
 		edge.alt=altitude;
 
-		PlotLRPath(source,edge,mask_value,fd);
+		PlotPropPath(source,edge,mask_value,fd,propmodel,knifeedge);
 		count++;
 
 		if (count==z) 
 		{
-			//fprintf(stdout,"%c",symbol[x]);
-			//fflush(stdout);
 			count=0;
 
 			if (x==3)
@@ -2075,7 +2121,7 @@ void PlotLRMap(struct site source, double altitude, char *plo_filename)
 		edge.lon=min_west;
 		edge.alt=altitude;
 
-		PlotLRPath(source,edge,mask_value,fd);
+		PlotPropPath(source,edge,mask_value,fd,propmodel,knifeedge);
 		count++;
 
 		if (count==z) 
@@ -2107,7 +2153,7 @@ void PlotLRMap(struct site source, double altitude, char *plo_filename)
 		edge.lon=lon;
 		edge.alt=altitude;
 
-		PlotLRPath(source,edge,mask_value,fd);
+		PlotPropPath(source,edge,mask_value,fd,propmodel,knifeedge);
 		count++;
                 if (count==z) 
 		{
@@ -2136,13 +2182,12 @@ void PlotLRMap(struct site source, double altitude, char *plo_filename)
 		edge.lon=max_west;
 		edge.alt=altitude;
 
-		PlotLRPath(source,edge,mask_value,fd);
+		PlotPropPath(source,edge,mask_value,fd,propmodel,knifeedge);
 		count++;
 
 		if (count==z) 
 		{
-			//fprintf(stdout,"%c",symbol[x]);
-			//fflush(stdout);
+		
 			count=0;
 
 			if (x==3)
@@ -3273,9 +3318,9 @@ void DoLOS(char *filename, unsigned char geo, unsigned char kml, unsigned char n
 	   points up and east points right in the image generated. */
 
 	char mapfile[255], geofile[255], kmlfile[255];
-	unsigned width, height, terrain, red, green, blue;
-	unsigned char found, mask, cityorcounty;
-	int indx, x, y, z=1, x0, y0, dBm, match;
+	unsigned width, height, terrain;
+	unsigned char found, mask;
+	int indx, x, y, x0, y0;
 	double conversion, one_over_gamma, lat, lon, minwest;
 	FILE *fd;
 
@@ -3488,7 +3533,7 @@ void DoLOS(char *filename, unsigned char geo, unsigned char kml, unsigned char n
 }
 
 
-void LoadTopoData(int max_lon, int min_lon, int max_lat, int min_lat)
+void LoadTopoData(int max_lon, int min_lon, int max_lat, int min_lat, int winfiles)
 {
 	/* This function loads the SDF files required
 	   to cover the limits of the region specified. */
@@ -3518,13 +3563,20 @@ void LoadTopoData(int max_lon, int min_lon, int max_lat, int min_lat)
 				while (ymax>=360)
 					ymax-=360;
 
-				if (ippd==3600)
-					snprintf(string,19,"%d:%d:%d:%d-hd",x, x+1, ymin, ymax);
-				else
-					snprintf(string,16,"%d:%d:%d:%d",x, x+1, ymin, ymax);
-                                
+				if (winfiles==1){
+					if (ippd==3600)
+						snprintf(string,19,"%d=%d=%d=%d=hd",x, x+1, ymin, ymax);
+					else
+						snprintf(string,16,"%d=%d=%d=%d",x, x+1, ymin, ymax);
 
-				LoadSDF(string);
+				}else{
+					if (ippd==3600)
+						snprintf(string,19,"%d:%d:%d:%d=hd",x, x+1, ymin, ymax);
+					else
+						snprintf(string,16,"%d:%d:%d:%d",x, x+1, ymin, ymax);
+				}                    
+
+				LoadSDF(string,winfiles);
 			}
 	}
 
@@ -3549,11 +3601,20 @@ void LoadTopoData(int max_lon, int min_lon, int max_lat, int min_lat)
 				while (ymax>=360)
 					ymax-=360;
 
-				if (ippd==3600)
-					snprintf(string,19,"%d:%d:%d:%d-hd",x, x+1, ymin, ymax);
-				else
-					snprintf(string,16,"%d:%d:%d:%d",x, x+1, ymin, ymax);
-				LoadSDF(string);
+				if (winfiles==1){
+					if (ippd==3600)
+						snprintf(string,19,"%d=%d=%d=%d=hd",x, x+1, ymin, ymax);
+					else
+						snprintf(string,16,"%d=%d=%d=%d",x, x+1, ymin, ymax);
+
+				}else{
+					if (ippd==3600)
+						snprintf(string,19,"%d:%d:%d:%d=hd",x, x+1, ymin, ymax);
+					else
+						snprintf(string,16,"%d:%d:%d:%d",x, x+1, ymin, ymax);
+				}  
+			
+				LoadSDF(string,winfiles);
 			}
 	}
 }
@@ -3725,7 +3786,7 @@ int main(int argc, char *argv[])
 {
 	int		x, y, z=0, min_lat, min_lon, max_lat, max_lon,
 			rxlat, rxlon, txlat, txlon, west_min, west_max,
-			north_min, north_max;
+			north_min, north_max, propmodel, winfiles,knifeedge=0;
 
 	unsigned char	LRmap=0, map=0,txsites=0,
 			topomap=0, geo=0, kml=0, area_mode=0, max_txsites, ngs=0;
@@ -3742,7 +3803,7 @@ int main(int argc, char *argv[])
 
 	
 
-	strncpy(ss_version,"1.3.6\0",6);
+	strncpy(ss_version,"1.3.7\0",6);
 	strncpy(ss_name,"Signal Server\0",14);
 	
 	if (argc==1)
@@ -3769,7 +3830,10 @@ int main(int argc, char *argv[])
                 fprintf(stdout,"       -R Radius (miles/kilometers)\n");
                 fprintf(stdout,"     -res Pixels per degree. 300/600/1200(default)/3600 (optional)\n");
                 fprintf(stdout,"     -t Terrain background\n");
-				fprintf(stdout,"     -dbg Debug\n\n");
+				fprintf(stdout,"     -pm Propagation model. 1: ITM (Default), 2: LOS, 3-5: Hata\n");
+				fprintf(stdout,"     -ked Knife edge diffraction (Default for ITM)\n");
+				fprintf(stdout,"     -wf Win32 SDF tile names ('=' not ':')\n");
+				fprintf(stdout,"     -dbg Debug mode\n\n");
 
  
 
@@ -3806,8 +3870,9 @@ int main(int argc, char *argv[])
 	ano_filename[0]=0;
 	ani_filename[0]=0;
 	earthradius=EARTHRADIUS;
-        max_range=1.0;
-                
+    max_range=1.0;
+	propmodel=1; //ITM
+    winfiles=0;           
 
         lat=0;
         lon=0;
@@ -3822,8 +3887,8 @@ int main(int argc, char *argv[])
 
         sscanf("0.1","%lf",&altitudeLR);
 
-                // Defaults
-                LR.eps_dielect=15.0; // Farmland
+        // Defaults
+        LR.eps_dielect=15.0; // Farmland
 		LR.sgm_conductivity=0.005; // Farmland
 		LR.eno_ns_surfref=301.0; 
 		LR.frq_mhz=19.0; // Deliberately too low
@@ -3836,10 +3901,6 @@ int main(int argc, char *argv[])
 		tx_site[0].lat=91.0;
 		tx_site[0].lon=361.0;
 	
-
-	//flush dem
-	//memset(dem, 0, ARRAYSIZE * sizeof(struct dem));
-	memset(dem, 0, (size_t)MAXPAGES * sizeof(struct dem));
 
 	for (x=0; x<MAXPAGES; x++)
 	{
@@ -3877,9 +3938,9 @@ int main(int argc, char *argv[])
                                     jgets=1;
                                 break;
 				
-				case 3600: 
+								case 3600: 
                                     MAXRAD=100;
-				    ippd=3600;
+									ippd=3600;
                                     jgets=0;
                                 break;
 
@@ -4146,9 +4207,9 @@ int main(int argc, char *argv[])
 
                 
     
-    /*UDT*/
+		/*UDT*/
    
-    if (strcmp(argv[x],"-udt")==0)
+		if (strcmp(argv[x],"-udt")==0)
 		{
 			z=x+1;
 
@@ -4158,7 +4219,31 @@ int main(int argc, char *argv[])
 			}
 		}
     
+		/*Prop model*/
+   
+		if (strcmp(argv[x],"-pm")==0)
+		{
+			z=x+1;
 
+			if (z<=y && argv[z][0])
+			{
+				sscanf(argv[z],"%d",&propmodel);
+			}
+		}
+		
+		//Knife edge diffraction
+		if (strcmp(argv[x],"-ked")==0)
+		{
+			z=x+1;
+			knifeedge=1;
+		}
+		
+		//Windows friendly SDF filenames
+		if (strcmp(argv[x],"-wf")==0)
+		{
+			z=x+1;
+			winfiles=1;
+		}
 	}
 
         /* ERROR DETECTION */
@@ -4221,7 +4306,10 @@ int main(int argc, char *argv[])
                     fprintf(stdout,"ERROR: Receiver threshold out of range (-200 / +200)");
                     exit(0);
                 }
-
+				if(propmodel>2 && LR.frq_mhz < 150){
+					fprintf(stdout,"ERROR: Frequency too low for Propagation model");
+                    exit(0);
+				}
 
 	 /* ERROR DETECTION COMPLETE */
 
@@ -4229,12 +4317,11 @@ int main(int argc, char *argv[])
                 
 	if (metric)
 	{
-		altitudeLR/=METERS_PER_FOOT;	/* RXH meters --> feet */
-		max_range/=KM_PER_MILE;		/* RAD kilometers --> miles */
+		altitudeLR/=METERS_PER_FOOT;	/* 10ft * 0.3 = 3.3m */
+		max_range/=KM_PER_MILE;		/* 10 / 1.6 = 7.5 */
 		altitude/=METERS_PER_FOOT;	
-		tx_site[0].alt/=METERS_PER_FOOT;	/* TXH meters --> feet */
-		clutter/=METERS_PER_FOOT;		/* CLH meters --> feet */
-		
+		tx_site[0].alt/=METERS_PER_FOOT;	/* Feet to metres */
+		clutter/=METERS_PER_FOOT;		/* Feet to metres */
 	}
 
 	/* Ensure a trailing '/' is present in sdf_path */
@@ -4296,7 +4383,7 @@ int main(int argc, char *argv[])
 
 	/* Load the required SDF files */
 
-	LoadTopoData(max_lon, min_lon, max_lat, min_lat);
+	LoadTopoData(max_lon, min_lon, max_lat, min_lat, winfiles);
 
 	if (area_mode || topomap)
 	{
@@ -4381,22 +4468,19 @@ int main(int argc, char *argv[])
 
 		/* Load any additional SDF files, if required */
 
-		LoadTopoData(max_lon, min_lon, max_lat, min_lat);
+		LoadTopoData(max_lon, min_lon, max_lat, min_lat, winfiles);
 	}
  
- // UDT clutter
- LoadUDT   (udt_file);
+	// UDT clutter
+	LoadUDT   (udt_file);
      
 
-	if (LR.frq_mhz > 20000){
-
+	if (LR.frq_mhz > 20000 || propmodel==2){
 	PlotLOSMap(tx_site[0],altitudeLR,ano_filename);
 	DoLOS(mapfile,geo,kml,ngs,tx_site,txsites);
-
 	}
 	else{
-	PlotLRMap(tx_site[0],altitudeLR,ano_filename);
-
+	PlotPropagation(tx_site[0],altitudeLR,ano_filename,propmodel,knifeedge);
 	
 			if (LR.erp==0.0)
 				DoPathLoss(mapfile,geo,kml,ngs,tx_site,txsites);

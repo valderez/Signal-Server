@@ -1215,9 +1215,9 @@ void point_to_point(double elev[], double tht_m, double rht_m, double eps_dielec
 	prop.mdp=-1;
 	zc=qerfi(conf);
 	zr=qerfi(rel);
-	np=(long)elev[0];
-	dkm=(elev[1]*elev[0])/1000.0;
-	xkm=elev[1]/1000.0;
+	np=(long)elev[0]; //number of points
+	dkm=(elev[1]*elev[0])/1000.0; // total distance in km. elev[1]=90(m) (default)
+	xkm=elev[1]/1000.0; // distance between points in km
 	eno=eno_ns_surfref;
 	enso=0.0;
 	q=enso;

@@ -1,16 +1,14 @@
-Signal-Server
-=============
-
-RF coverage calculator
+Signal-Server RF coverage calculator
+====================================
 
 /****************************************************************************\
-*	   Signal Server 1.3.6: Server optimised SPLAT! by Alex Farrant      *
+*	   Signal Server 1.3.7: Server optimised SPLAT! by Alex Farrant          *
 ******************************************************************************
-*	SPLAT! Project started in 1997 by John A. Magliacane, KD2BD 	     *
-*					                                     *
+*	SPLAT! Project started in 1997 by John A. Magliacane, KD2BD 	         *
+*					                                                         *
 ******************************************************************************
 *         Please consult the SPLAT! documentation for a complete list of     *
-*	     individuals who have contributed to this project. 		     *
+*	     individuals who have contributed to this project. 		             *
 ******************************************************************************
 *                                                                            *
 *  This program is free software; you can redistribute it and/or modify it   *
@@ -24,7 +22,7 @@ RF coverage calculator
 *  for more details.							     *
 *									     *
 ******************************************************************************
-* g++ -Wall -O3 -s -lm -fomit-frame-pointer itm.cpp main.cpp -o ss           * 
+* g++ -Wall -O3 -s -lm -fomit-frame-pointer itm.cpp cost.cpp hata.cpp main.cpp -o ss  * 
 \****************************************************************************/
 
 	Usage: Signalserver (options)
@@ -51,4 +49,7 @@ RF coverage calculator
                        -R Radius (miles/kilometers)
                      -res Pixels per degree. 300/600/1200(default)/3600 (optional)
                      -t Terrain background
-				     -dbg Debug
+					 -pm Propagation model. 1: ITM (Default), 2: LOS, 3-5: Hata
+					 -ked Knife edge diffraction (Default for ITM)
+					 -wf Win32 SDF tile names ('=' not ':')
+					 -dbg Debug mode

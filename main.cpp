@@ -1,5 +1,5 @@
 /****************************************************************************\
-*	   Signal Server 1.3.7: Server optimised SPLAT! by Alex Farrant          *
+*	   Signal Server 1.3.8: Server optimised SPLAT! by Alex Farrant          *
 ******************************************************************************
 *	SPLAT! Project started in 1997 by John A. Magliacane, KD2BD 	         *
 *					                                                         *
@@ -19,7 +19,7 @@
 *  for more details.							     *
 *									     *
 ******************************************************************************
-* g++ -Wall -O3 -s -lm -fomit-frame-pointer itm.cpp cost.cpp hata.cpp main.cpp -o ss  * 
+* g++ -Wall -O3 -s -lm -fomit-frame-pointer itm.cpp hata.cpp cost.cpp fspl.cpp main.cpp -o ss  * 
 \****************************************************************************/
 
 #include <stdio.h>
@@ -121,6 +121,8 @@ void point_to_point(double elev[], double tht_m, double rht_m,
 double HataLinkdB(float f,float h_B, float h_M, float d, int mode);
 
 double CostHataLinkdB(float f,float h_B, float h_M, float d);
+
+double FsplLinkdB(float f, float d);
 
 double ked(double freq, double elev[], double rxh, double dkm);
 
@@ -1787,6 +1789,11 @@ void PlotPropPath(struct site source, struct site destination, unsigned char mas
 			  case 6:
 			    // COST231-HATA
 				loss=CostHataLinkdB(LR.frq_mhz,txelev,path.elevation[y]+(destination.alt*METERS_PER_FOOT),dkm);
+				break;
+			  case 7:
+			    // ITU-R P.525 Free space path loss
+				loss=FsplLinkdB(LR.frq_mhz,dkm);
+				//fprintf(stdout,"MHz: %1f KM: %1f = %1fdB",LR.frq_mhz,dkm,loss);
 				break;
 				
 			  default:
@@ -3803,7 +3810,7 @@ int main(int argc, char *argv[])
 
 	
 
-	strncpy(ss_version,"1.3.7\0",6);
+	strncpy(ss_version,"1.3.8\0",6);
 	strncpy(ss_name,"Signal Server\0",14);
 	
 	if (argc==1)
@@ -3830,7 +3837,7 @@ int main(int argc, char *argv[])
                 fprintf(stdout,"       -R Radius (miles/kilometers)\n");
                 fprintf(stdout,"     -res Pixels per degree. 300/600/1200(default)/3600 (optional)\n");
                 fprintf(stdout,"     -t Terrain background\n");
-				fprintf(stdout,"     -pm Propagation model. 1: ITM (Default), 2: LOS, 3-5: Hata\n");
+				fprintf(stdout,"     -pm Propagation model. 1: ITM (Default), 2: LOS, 3-5: Hata, 6: COST231, 7: ITU525\n");
 				fprintf(stdout,"     -ked Knife edge diffraction (Default for ITM)\n");
 				fprintf(stdout,"     -wf Win32 SDF tile names ('=' not ':')\n");
 				fprintf(stdout,"     -dbg Debug mode\n\n");

@@ -4482,7 +4482,7 @@ int main(int argc, char *argv[])
 	LoadUDT   (udt_file);
      
 
-	if (LR.frq_mhz > 20000 || propmodel==2){
+	if (propmodel==2){
 	PlotLOSMap(tx_site[0],altitudeLR,ano_filename);
 	DoLOS(mapfile,geo,kml,ngs,tx_site,txsites);
 	}

@@ -2,7 +2,7 @@ Signal-Server RF coverage calculator
 ====================================
 
 /****************************************************************************\
-*	   Signal Server 1.3.7: Server optimised SPLAT! by Alex Farrant          *
+*	   Signal Server 1.3.8: Server optimised SPLAT! by Alex Farrant          *
 ******************************************************************************
 *	SPLAT! Project started in 1997 by John A. Magliacane, KD2BD 	         *
 *					                                                         *
@@ -22,7 +22,7 @@ Signal-Server RF coverage calculator
 *  for more details.							     *
 *									     *
 ******************************************************************************
-* g++ -Wall -O3 -s -lm -fomit-frame-pointer itm.cpp cost.cpp hata.cpp main.cpp -o ss  * 
+* g++ -Wall -O3 -s -lm -fomit-frame-pointer itm.cpp cost.cpp hata.cpp fspl.cpp main.cpp -o ss  * 
 \****************************************************************************/
 
 	Usage: Signalserver (options)

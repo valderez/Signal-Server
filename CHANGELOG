@@ -1,4 +1,7 @@
-Signal Server 1.3.7 changelog 
+Signal Server 1.3.8 changelog 
+
+v1.3.8 - 16 Jan 2014
+Added Free Space Path Loss model (with optional diffraction)
 
 v1.3.7 - 30 Dec 2013
 Added propagation model option (-pm)
